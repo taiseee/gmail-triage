@@ -1,0 +1,12 @@
+{
+  "name": "gmail-triage-notifier",
+  "version": "1.0.0",
+  "description": "Gmail triage Discord bot: draft notifications with send/revise buttons",
+  "main": "notifier.js",
+  "scripts": {
+    "start": "node notifier.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.0.0"
+  }
+}

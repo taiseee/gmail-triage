@@ -1,0 +1,22 @@
+name: gmail-triage
+# 入力: watch-runner.sh が +watch NDJSON 1行に {account: <alias>} を付与したもの
+inputs:
+  - id: mail
+
+steps:
+  - id: judge
+    llm: true
+    prompt_file: prompts/decide.txt
+    stdin: $mail.json
+    # 出力: {reply_needed: bool, reason, subject, draft, account, threadId, messageId}
+
+  - id: create_draft
+    command: bash scripts/create-draft.sh
+    stdin: $judge.json
+    condition: $judge.reply_needed
+    # 出力: {draftId, account, subject, preview}
+
+  - id: notify
+    command: bash scripts/notify.sh
+    stdin: $create_draft.json
+    condition: $create_draft.draftId

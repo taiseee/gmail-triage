@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# 指定 Gmail 下書きの本文を取得して stdout に出力する
+set -eo pipefail
+
+DRAFT_ID="${1:?Usage: show.sh <draft_id> <alias>}"
+ALIAS="${2:?Usage: show.sh <draft_id> <alias>}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/../../.."
+set -a; source .env; set +a
+
+_ALIAS_UPPER=$(printf '%s' "$ALIAS" | tr '[:lower:]' '[:upper:]')
+_GWS_DIR_VAR="GMAIL_${_ALIAS_UPPER}_GWS_DIR"
+export GOOGLE_WORKSPACE_CLI_CONFIG_DIR="${!_GWS_DIR_VAR:?${_GWS_DIR_VAR} is not set in .env}"
+
+gws gmail users drafts get \
+  --params "{\"userId\": \"me\", \"id\": \"${DRAFT_ID}\", \"format\": \"full\"}" \
+  | jq -r '.message.payload.parts[]? | select(.mimeType == "text/plain") | .body.data // empty' \
+  | base64 -d 2>/dev/null \
+  || gws gmail users drafts get \
+       --params "{\"userId\": \"me\", \"id\": \"${DRAFT_ID}\", \"format\": \"full\"}" \
+       | jq -r '.message.payload.body.data // empty' \
+       | base64 -d
