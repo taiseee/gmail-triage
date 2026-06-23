@@ -53,7 +53,7 @@ if [[ "$ALLOWLISTED" -eq 1 ]]; then
 fi
 
 RAW_JUDGE=$(printf '%s' "$CLASSIFY_PROMPT" \
-  | codex exec --ask-for-approval never --ephemeral \
+  | codex exec --dangerously-bypass-approvals-and-sandbox --ephemeral \
       "上記の指示に従って JSON のみを出力してください。" \
       2>/dev/null)
 

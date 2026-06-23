@@ -26,7 +26,7 @@ sys.stdout.write(result)
 
 # codex でリライト
 NEW_BODY=$(printf '%s' "$FULL_PROMPT" \
-  | codex exec --ask-for-approval never --ephemeral \
+  | codex exec --dangerously-bypass-approvals-and-sandbox --ephemeral \
       "上記の指示に従って改稿後の本文のみを出力してください。" \
       2>/dev/null \
   | sed 's/^```[a-z]*//; s/```$//' \
