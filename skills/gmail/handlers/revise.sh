@@ -24,15 +24,16 @@ result = result.replace('{{current_body}}', sys.argv[2])
 sys.stdout.write(result)
 " "$USER_INSTRUCTION" "$CURRENT_BODY")
 
-# agy でリライト
+# codex でリライト
 NEW_BODY=$(printf '%s' "$FULL_PROMPT" \
-  | agy -p "上記の指示に従って改稿後の本文のみを出力してください。" \
+  | codex exec --ask-for-approval never --ephemeral \
+      "上記の指示に従って改稿後の本文のみを出力してください。" \
       2>/dev/null \
   | sed 's/^```[a-z]*//; s/```$//' \
   | tr -d '\r')
 
 if [[ -z "$NEW_BODY" ]]; then
-  echo "[revise] ERROR: agy returned empty output" >&2
+  echo "[revise] ERROR: codex returned empty output" >&2
   exit 1
 fi
 

@@ -41,7 +41,7 @@ if [[ -n "$FROM_ADDR" ]] && [[ -f data/allowlist.txt ]] && grep -Fxq "$FROM_ADDR
   ALLOWLISTED=1
 fi
 
-# Step 2: 分類 — agy -p でワンショット推論（category + reason のみ出力）
+# Step 2: 分類 — codex exec でワンショット推論（category + reason のみ出力）
 CLASSIFY_PROMPT="$(cat prompts/decide.txt)
 
 受信メール情報:
@@ -53,7 +53,8 @@ if [[ "$ALLOWLISTED" -eq 1 ]]; then
 fi
 
 RAW_JUDGE=$(printf '%s' "$CLASSIFY_PROMPT" \
-  | agy -p "上記の指示に従って JSON のみを出力してください。" \
+  | codex exec --ask-for-approval never --ephemeral \
+      "上記の指示に従って JSON のみを出力してください。" \
       2>/dev/null)
 
 # コードブロック除去して JSON パース（subject はメール由来の値で補完）
@@ -82,7 +83,7 @@ fi
 case "$CATEGORY" in
   reply)
     echo "[triage] category=reply: $REASON"
-    # Step 3: agy で返信本文を自律生成（読み取り専用ツール使用・本文のみ出力）
+    # Step 3: codex で返信本文を自律生成（読み取り専用ツール使用・本文のみ出力）
     REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
     ACCOUNT_DIRS_LIST=$(printenv | grep '^GMAIL_[A-Z]*_GWS_DIR=' || true | while IFS='=' read -r k v; do
       alias_name=$(printf '%s' "$k" | sed 's/GMAIL_\([A-Z]*\)_GWS_DIR/\1/' | tr '[:upper:]' '[:lower:]')
@@ -101,13 +102,12 @@ ${BODY}
 カレンダーアカウント設定:
 ${ACCOUNT_DIRS_LIST}"
     AGY_RAW=$(printf '%s' "$DRAFT_PROMPT" \
-      | agy -p --dangerously-skip-permissions --print-timeout 20m \
-            --add-dir "$REPO_ROOT" \
+      | codex exec --dangerously-bypass-approvals-and-sandbox --ephemeral \
             "上記の指示に従い、<<<BODY>>>...<<<END>>>マーカーで囲んで返信本文のみを出力してください。" \
             2>/dev/null || true)
     # マーカー間のみ抽出。見つからない場合（タイムアウト含む）は通知せず終了
     if ! printf '%s' "$AGY_RAW" | grep -q '<<<BODY>>>'; then
-      echo "[triage] SKIP: agy did not return <<<BODY>>> marker (timed out or failed)" >&2
+      echo "[triage] SKIP: codex did not return <<<BODY>>> marker (timed out or failed)" >&2
       exit 0
     fi
     DRAFT_BODY=$(printf '%s' "$AGY_RAW" \
