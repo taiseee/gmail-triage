@@ -8,3 +8,4 @@ no-reply@email.claude.com
 jmbnews@jalmail.jal.com
 mail@cj.jcb.co.jp
 moneyforward-recruit@snar.jp
+jalcard@jalmail.jal.com
