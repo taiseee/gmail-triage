@@ -8,7 +8,7 @@
 
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/opt/node/bin/node</string>
+    <string>__NODE_CMD__</string>
     <string>__REPO_DIR__/bot/notifier.js</string>
   </array>
 
@@ -26,7 +26,7 @@
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>/opt/homebrew/opt/node/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <string>__PATH__</string>
   </dict>
 </dict>
 </plist>
