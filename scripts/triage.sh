@@ -54,6 +54,7 @@ fi
 
 RAW_JUDGE=$(printf '%s' "$CLASSIFY_PROMPT" \
   | codex exec --dangerously-bypass-approvals-and-sandbox --ephemeral \
+      -m gpt-5.4-mini -c model_reasoning_effort=low \
       "上記の指示に従って JSON のみを出力してください。" \
       2>/dev/null)
 
@@ -103,6 +104,7 @@ ${BODY}
 ${ACCOUNT_DIRS_LIST}"
     AGY_RAW=$(printf '%s' "$DRAFT_PROMPT" \
       | codex exec --dangerously-bypass-approvals-and-sandbox --ephemeral \
+            -m gpt-5.4-mini -c model_reasoning_effort=low \
             "上記の指示に従い、<<<BODY>>>...<<<END>>>マーカーで囲んで返信本文のみを出力してください。" \
             2>/dev/null || true)
     # マーカー間のみ抽出。見つからない場合（タイムアウト含む）は通知せず終了
