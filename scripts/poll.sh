@@ -11,6 +11,29 @@ _ALIAS_UPPER=$(printf '%s' "$ALIAS" | tr '[:lower:]' '[:upper:]')
 _GWS_DIR_VAR="GMAIL_${_ALIAS_UPPER}_GWS_DIR"
 export GOOGLE_WORKSPACE_CLI_CONFIG_DIR="${!_GWS_DIR_VAR:?${_GWS_DIR_VAR} is not set in .env}"
 
+LOCK_DIR="data/locks/poll-${ALIAS}.lock"
+LOCK_PID_FILE="$LOCK_DIR/pid"
+mkdir -p data/locks
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  LOCK_PID=$(cat "$LOCK_PID_FILE" 2>/dev/null || true)
+  if [[ "$LOCK_PID" =~ ^[0-9]+$ ]] && ! kill -0 "$LOCK_PID" 2>/dev/null; then
+    rm -f "$LOCK_PID_FILE"
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+  fi
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo "[poll] Another poll is already running for $ALIAS"
+    exit 0
+  fi
+fi
+printf '%s\n' "$$" > "$LOCK_PID_FILE"
+cleanup_lock() {
+  rm -f "$LOCK_PID_FILE"
+  rmdir "$LOCK_DIR" 2>/dev/null || true
+}
+trap cleanup_lock EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 TRIAGE_LABEL="${GMAIL_TRIAGE_LABEL:-LLM-Triaged}"
 REPLY_LABEL="${GMAIL_REPLY_LABEL:-要返信}"
 CHECK_LABEL="${GMAIL_CHECK_LABEL:-要確認}"
@@ -83,28 +106,28 @@ while IFS= read -r MSG_ID; do
     --arg body "$BODY" \
     '. + {account: $acc, subject: $subj, from: $from, rfcMessageId: $rfcmid, body: $body}')
 
-  # LLM-Triaged を先付与（重複処理防止。失敗しても再処理しない）
-  gws gmail users messages modify \
-    --params "{\"userId\":\"me\",\"id\":\"$MSG_ID\"}" \
-    --json "{\"addLabelIds\":[\"$TRIAGED_ID\"]}" > /dev/null \
-    || { echo "[poll] WARNING: failed to pre-label $MSG_ID, skipping"; continue; }
-
   # triage 実行（exit code でカテゴリ判定）
   rc=0
   printf '%s' "$TRIAGE_JSON" | bash "$SCRIPT_DIR/triage.sh" "$ALIAS" || rc=$?
   case "$rc" in
-    0)  echo "[poll] Labeled $MSG_ID (none)" ;;
+    0)  gws gmail users messages modify \
+          --params "{\"userId\":\"me\",\"id\":\"$MSG_ID\"}" \
+          --json "{\"addLabelIds\":[\"$TRIAGED_ID\"]}" > /dev/null \
+          && echo "[poll] Labeled $MSG_ID (none)" ;;
     10) gws gmail users messages modify \
           --params "{\"userId\":\"me\",\"id\":\"$MSG_ID\"}" \
-          --json "{\"addLabelIds\":[\"$REPLY_ID\"]}" > /dev/null \
+          --json "{\"addLabelIds\":[\"$TRIAGED_ID\",\"$REPLY_ID\"]}" > /dev/null \
           && echo "[poll] Labeled $MSG_ID (reply)" ;;
     11) gws gmail users messages modify \
           --params "{\"userId\":\"me\",\"id\":\"$MSG_ID\"}" \
-          --json "{\"addLabelIds\":[\"$CHECK_ID\"]}" > /dev/null \
+          --json "{\"addLabelIds\":[\"$TRIAGED_ID\",\"$CHECK_ID\"]}" > /dev/null \
           && echo "[poll] Labeled $MSG_ID (check)" ;;
-    12) echo "[poll] Labeled $MSG_ID (spam - awaiting confirmation)" ;;
+    12) gws gmail users messages modify \
+          --params "{\"userId\":\"me\",\"id\":\"$MSG_ID\"}" \
+          --json "{\"addLabelIds\":[\"$TRIAGED_ID\"]}" > /dev/null \
+          && echo "[poll] Labeled $MSG_ID (spam - awaiting confirmation)" ;;
     *)
-      echo "[poll] WARNING: triage failed ($rc) for $MSG_ID (already pre-labeled, no retry)"
+      echo "[poll] WARNING: triage failed ($rc) for $MSG_ID (left untriaged for retry)"
       ;;
   esac
 

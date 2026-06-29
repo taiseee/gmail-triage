@@ -9,6 +9,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/../../.."
 set -a; source .env; set +a
 
+_CODEX_HOME="${HOME}/.codex-headless"
+_CODEX_FAKE_HOME="${HOME}/.codex-headless-home"
+
 USER_INSTRUCTION="$(cat)"
 
 # 現在の本文を取得
@@ -26,7 +29,8 @@ sys.stdout.write(result)
 
 # codex でリライト
 NEW_BODY=$(printf '%s' "$FULL_PROMPT" \
-  | codex exec --dangerously-bypass-approvals-and-sandbox --ephemeral \
+  | CODEX_HOME="$_CODEX_HOME" HOME="$_CODEX_FAKE_HOME" \
+    codex exec --dangerously-bypass-approvals-and-sandbox --ephemeral \
       -m gpt-5.4-mini -c model_reasoning_effort=low \
       "上記の指示に従って改稿後の本文のみを出力してください。" \
       2>/dev/null \

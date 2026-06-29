@@ -7,6 +7,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 set -a; source .env; set +a
 
+_CODEX_HOME="${HOME}/.codex-headless"
+_CODEX_FAKE_HOME="${HOME}/.codex-headless-home"
+_CODEX_LOG_DIR="${SCRIPT_DIR}/../logs"
+mkdir -p "$_CODEX_LOG_DIR" "$_CODEX_FAKE_HOME"
+
 MAIL_JSON="$(cat)"
 
 if [[ -z "$MAIL_JSON" ]] || ! printf '%s' "$MAIL_JSON" | jq -e . >/dev/null 2>&1; then
@@ -52,11 +57,30 @@ if [[ "$ALLOWLISTED" -eq 1 ]]; then
 注意: 送信者 ${FROM_ADDR} はユーザーが「迷惑メールではない」と確認済みです。spam には分類しないこと。"
 fi
 
-RAW_JUDGE=$(printf '%s' "$CLASSIFY_PROMPT" \
-  | codex exec --dangerously-bypass-approvals-and-sandbox --ephemeral \
-      -m gpt-5.4-mini -c model_reasoning_effort=low \
-      "上記の指示に従って JSON のみを出力してください。" \
-      2>/dev/null)
+JUDGE_ERR="$(mktemp "${TMPDIR:-/tmp}/gmail-triage-judge.XXXXXX")"
+trap 'rm -f "$JUDGE_ERR"' EXIT
+set +e
+RAW_JUDGE=$(
+  printf '%s' "$CLASSIFY_PROMPT" \
+    | CODEX_HOME="$_CODEX_HOME" HOME="$_CODEX_FAKE_HOME" \
+      codex exec --dangerously-bypass-approvals-and-sandbox --ephemeral \
+        -m gpt-5.4-mini -c model_reasoning_effort=low \
+        "上記の指示に従って JSON のみを出力してください。" \
+        2>"$JUDGE_ERR"
+)
+JUDGE_RC=$?
+set -e
+if [[ "$JUDGE_RC" -ne 0 ]]; then
+  echo "[triage] ERROR: judge codex failed rc=$JUDGE_RC: $(tail -n 20 "$JUDGE_ERR" | tr '\n' ' ')" >&2
+  cat "$JUDGE_ERR" >> "$_CODEX_LOG_DIR/codex-judge.err"
+  rm -f "$JUDGE_ERR"
+  exit 2
+fi
+if [[ -s "$JUDGE_ERR" ]]; then
+  cat "$JUDGE_ERR" >> "$_CODEX_LOG_DIR/codex-judge.err"
+fi
+rm -f "$JUDGE_ERR"
+trap - EXIT
 
 # コードブロック除去して JSON パース（subject はメール由来の値で補完）
 JUDGE_JSON=$(printf '%s' "$RAW_JUDGE" \
@@ -103,10 +127,11 @@ ${BODY}
 カレンダーアカウント設定:
 ${ACCOUNT_DIRS_LIST}"
     AGY_RAW=$(printf '%s' "$DRAFT_PROMPT" \
-      | codex exec --dangerously-bypass-approvals-and-sandbox --ephemeral \
+      | CODEX_HOME="$_CODEX_HOME" HOME="$_CODEX_FAKE_HOME" \
+        codex exec --dangerously-bypass-approvals-and-sandbox --ephemeral \
             -m gpt-5.4-mini -c model_reasoning_effort=low \
             "上記の指示に従い、<<<BODY>>>...<<<END>>>マーカーで囲んで返信本文のみを出力してください。" \
-            2>/dev/null || true)
+            2>>"$_CODEX_LOG_DIR/codex-draft.err" || true)
     # マーカー間のみ抽出。見つからない場合（タイムアウト含む）は通知せず終了
     if ! printf '%s' "$AGY_RAW" | grep -q '<<<BODY>>>'; then
       echo "[triage] SKIP: codex did not return <<<BODY>>> marker (timed out or failed)" >&2
