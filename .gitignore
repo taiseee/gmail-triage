@@ -2,3 +2,5 @@
 cache/
 logs/
 bot/node_modules/
+data/allowlist.txt
+data/blocklist.txt

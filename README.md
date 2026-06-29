@@ -57,8 +57,8 @@ gmail_triage/
 │   └── revise.txt         # 改稿プロンプト
 ├── launchd/               # LaunchAgent plist テンプレート
 ├── data/
-│   ├── blocklist.txt      # 迷惑メールとして登録したアドレス（1行1アドレス）
-│   └── allowlist.txt      # 通常メールとして確認済みのアドレス（1行1アドレス）
+│   ├── blocklist.txt      # 迷惑メールとして登録したアドレス（ローカル生成・Git管理外）
+│   └── allowlist.txt      # 通常メールとして確認済みのアドレス（ローカル生成・Git管理外）
 └── logs/                  # poll・bot のログ出力先
 ```
 
